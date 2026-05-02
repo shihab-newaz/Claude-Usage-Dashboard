@@ -7,6 +7,7 @@ import {
   BarChart3,
   Database,
   Layers,
+  Cpu,
   FolderOpen,
   Download,
   Settings,
@@ -33,6 +34,10 @@ const navSections = [
     items: [{ href: "/claude-usage/projects", label: "Project Stats", icon: FolderOpen }],
   },
   {
+    title: "Models",
+    items: [{ href: "/claude-usage/models", label: "Model Usage", icon: Cpu }],
+  },
+  {
     title: "Export",
     items: [{ href: "/claude-usage/export", label: "Export Data", icon: Download }],
   },
@@ -41,7 +46,7 @@ const navSections = [
 export function Sidebar() {
   const pathname = usePathname();
   const [openSections, setOpenSections] = useState<Set<string>>(
-    new Set(["Analytics", "Sessions", "Tools", "Projects", "Export"])
+    new Set(["Analytics", "Sessions", "Tools", "Models", "Projects", "Export"])
   );
 
   const toggleSection = (title: string) => {

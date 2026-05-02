@@ -7,6 +7,7 @@ import type {
   TimeSeriesPoint,
   ToolUsageEntry,
   LanguageEntry,
+  ModelUsageEntry,
   SessionSummary,
   ClaudeUsageResponse,
 } from "@/lib/types";
@@ -121,6 +122,25 @@ export async function GET() {
       count: r.count,
     }));
 
+    // Model breakdown — aggregate token usage and message count per model
+    const modelRows = db.prepare(`
+      SELECT
+        model,
+        SUM(input_tokens)    AS inputTokens,
+        SUM(output_tokens)  AS outputTokens,
+        SUM(message_count)  AS messageCount
+      FROM session_models
+      GROUP BY model
+      ORDER BY inputTokens DESC
+    `).all() as Array<{ model: string; inputTokens: number; outputTokens: number; messageCount: number }>;
+    const modelBreakdown: ModelUsageEntry[] = modelRows.map((r) => ({
+      model: r.model,
+      inputTokens: r.inputTokens,
+      outputTokens: r.outputTokens,
+      messageCount: r.messageCount,
+      estimatedCostUSD: estimateCost(r.inputTokens, r.outputTokens),
+    }));
+
     // Recent sessions — last 10, with per-session top 5 tools/languages joined separately
     const recentRows = db.prepare(`
       SELECT id, project_path, start_time, duration_minutes,
@@ -131,26 +151,50 @@ export async function GET() {
       LIMIT 10
     `).all() as Array<Record<string, unknown>>;
 
+    const sessionIds = recentRows.map((r) => r.id as string);
+
+    // Batch-fetch top-5 tools per session — single query instead of N per-session queries
+    const toolsStmt = db.prepare(`
+      SELECT session_id, tool_name AS tool, call_count AS count
+      FROM (
+        SELECT session_id, tool_name, call_count,
+               ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY call_count DESC) AS rn
+        FROM session_tools
+        WHERE session_id IN (${sessionIds.map(() => "?").join(",")})
+      )
+      WHERE rn <= 5
+      ORDER BY session_id, count DESC
+    `);
+    const toolsBySession = new Map<string, ToolUsageEntry[]>();
+    for (const row of toolsStmt.all(...sessionIds) as Array<{ session_id: string; tool: string; count: number }>) {
+      const arr = toolsBySession.get(row.session_id) ?? [];
+      arr.push({ tool: row.tool, count: row.count });
+      toolsBySession.set(row.session_id, arr);
+    }
+
+    // Batch-fetch top-5 languages per session — single query instead of N per-session queries
+    const langsStmt = db.prepare(`
+      SELECT session_id, language, file_count AS count
+      FROM (
+        SELECT session_id, language, file_count,
+               ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY file_count DESC) AS rn
+        FROM session_languages
+        WHERE session_id IN (${sessionIds.map(() => "?").join(",")})
+      )
+      WHERE rn <= 5
+      ORDER BY session_id, count DESC
+    `);
+    const langsBySession = new Map<string, LanguageEntry[]>();
+    for (const row of langsStmt.all(...sessionIds) as Array<{ session_id: string; language: string; count: number }>) {
+      const arr = langsBySession.get(row.session_id) ?? [];
+      arr.push({ language: row.language, count: row.count });
+      langsBySession.set(row.session_id, arr);
+    }
+
     const recentSessions: SessionSummary[] = recentRows.map((row) => {
       const sessionId = row.id as string;
       const inputTokens = row.input_tokens as number;
       const outputTokens = row.output_tokens as number;
-
-      const sessionTools = db.prepare(`
-        SELECT tool_name AS tool, call_count AS count
-        FROM session_tools
-        WHERE session_id = ?
-        ORDER BY count DESC
-        LIMIT 5
-      `).all(sessionId) as Array<{ tool: string; count: number }>;
-
-      const sessionLangs = db.prepare(`
-        SELECT language, file_count AS count
-        FROM session_languages
-        WHERE session_id = ?
-        ORDER BY count DESC
-        LIMIT 5
-      `).all(sessionId) as Array<{ language: string; count: number }>;
 
       return {
         sessionId,
@@ -164,8 +208,8 @@ export async function GET() {
         linesRemoved: 0,
         filesModified: 0,
         toolCount: row.tool_count as number,
-        topTools: sessionTools.map((t) => ({ tool: t.tool, count: t.count })),
-        topLanguages: sessionLangs.map((l) => ({ language: l.language, count: l.count })),
+        topTools: toolsBySession.get(sessionId) ?? [],
+        topLanguages: langsBySession.get(sessionId) ?? [],
       };
     });
 
@@ -174,6 +218,7 @@ export async function GET() {
       timeSeries,
       toolBreakdown,
       languageBreakdown,
+      modelBreakdown,
       recentSessions,
       generatedAt: new Date().toISOString(),
     };

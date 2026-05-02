@@ -51,9 +51,20 @@ export function syncAllSessions(): void {
     ON CONFLICT(session_id, language) DO UPDATE SET file_count = excluded.file_count
   `);
 
+  // Per-session model usage — tracks which models were used and their token totals
+  const upsertModel = db.prepare(`
+    INSERT INTO session_models (session_id, model, input_tokens, output_tokens, message_count)
+    VALUES (@sessionId, @model, @inputTokens, @outputTokens, @messageCount)
+    ON CONFLICT(session_id, model) DO UPDATE SET
+      input_tokens = excluded.input_tokens,
+      output_tokens = excluded.output_tokens,
+      message_count = excluded.message_count
+  `);
+
   // Wipe child rows before re-inserting to avoid stale data from old parsed runs
   const deleteTools = db.prepare(`DELETE FROM session_tools WHERE session_id = ?`);
   const deleteLangs = db.prepare(`DELETE FROM session_languages WHERE session_id = ?`);
+  const deleteModels = db.prepare(`DELETE FROM session_models WHERE session_id = ?`);
 
   const lastParsedAt = new Date().toISOString();
 
@@ -86,8 +97,18 @@ export function syncAllSessions(): void {
       upsertSession.run(sessionRow);
       deleteTools.run(parsed.id);
       deleteLangs.run(parsed.id);
+      deleteModels.run(parsed.id);
       for (const [toolName, callCount] of Object.entries(parsed.toolCounts)) {
         upsertTool.run({ sessionId: parsed.id, toolName, callCount });
+      }
+      for (const [model, stats] of Object.entries(parsed.modelCounts)) {
+        upsertModel.run({
+          sessionId: parsed.id,
+          model,
+          inputTokens: stats.inputTokens,
+          outputTokens: stats.outputTokens,
+          messageCount: stats.messageCount,
+        });
       }
       // languages are not populated by parseJsonlFile in this implementation
     })();

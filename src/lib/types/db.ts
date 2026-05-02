@@ -16,4 +16,6 @@ export interface ParsedSession {
   filesModified: number;
   usesTaskAgent: boolean;
   usesMcp: boolean;
+  // Model usage aggregated per session — maps model name to token totals
+  modelCounts: Record<string, { inputTokens: number; outputTokens: number; messageCount: number }>;
 }

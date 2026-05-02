@@ -8,7 +8,6 @@ import { BarChart } from "@/components/charts/BarChart";
 import { SessionsTable } from "@/components/common/SessionsTable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatUSD } from "@/lib/cost";
 import { format } from "date-fns";
 import { MessageSquare, Zap, TrendingUp, Clock, DollarSign } from "lucide-react";
 
@@ -93,6 +92,12 @@ export default function ClaudeUsagePage() {
           >
             Languages
           </TabsTrigger>
+          <TabsTrigger
+            value="models"
+            className="data-[active]:bg-[#faff69] data-[active]:text-[#0a0a0a] data-[active]:font-semibold rounded-lg px-4 py-2 text-sm text-[#888888] hover:text-[#ffffff] transition-all"
+          >
+            Models
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="tokens">
@@ -141,6 +146,24 @@ export default function ClaudeUsagePage() {
             ) : (
               <div className="flex h-64 items-center justify-center text-sm text-[#888888]">
                 No language data available
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="models">
+          <div className="rounded-xl bg-[#1a1a1a] border border-[#2a2a2a] p-6">
+            <h3 className="text-[13px] font-semibold uppercase tracking-widest text-[#888888] mb-4">
+              Model Distribution
+            </h3>
+            {data.modelBreakdown.length > 0 ? (
+              <PieChart
+                data={data.modelBreakdown.map((m) => ({ name: m.model, value: m.inputTokens }))}
+                height={280}
+              />
+            ) : (
+              <div className="flex h-64 items-center justify-center text-sm text-[#888888]">
+                No model data available
               </div>
             )}
           </div>

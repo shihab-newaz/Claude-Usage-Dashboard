@@ -48,6 +48,17 @@ export function migrate(db: Database.Database): void {
       FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
     );
 
+    -- Model usage per session — extracted from assistant message "model" field
+    CREATE TABLE IF NOT EXISTS session_models (
+      session_id TEXT NOT NULL,
+      model      TEXT NOT NULL,
+      input_tokens INTEGER DEFAULT 0,
+      output_tokens INTEGER DEFAULT 0,
+      message_count INTEGER DEFAULT 1,
+      PRIMARY KEY (session_id, model),
+      FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+    );
+
     -- Speed up time-series GROUP BY and project-path filtering
     CREATE INDEX IF NOT EXISTS idx_sessions_start_time ON sessions(start_time);
     CREATE INDEX IF NOT EXISTS idx_sessions_project_path ON sessions(project_path);

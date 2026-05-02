@@ -42,6 +42,15 @@ export interface LanguageEntry {
   count: number;
 }
 
+/** Model usage breakdown entry */
+export interface ModelUsageEntry {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  messageCount: number;
+  estimatedCostUSD: number;
+}
+
 /** Session-level summary for the table */
 export interface SessionSummary {
   sessionId: string;
@@ -65,6 +74,7 @@ export interface ClaudeUsageResponse {
   timeSeries: TimeSeriesPoint[];
   toolBreakdown: ToolUsageEntry[];
   languageBreakdown: LanguageEntry[];
+  modelBreakdown: ModelUsageEntry[];
   recentSessions: SessionSummary[];
   generatedAt: string; // ISO 8601
 }

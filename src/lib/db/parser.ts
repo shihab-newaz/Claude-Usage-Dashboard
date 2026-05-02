@@ -9,6 +9,7 @@ interface JsonEntry {
   timestamp?: string;
   message?: {
     role?: string;
+    model?: string;
     content?: Array<Record<string, unknown>>;
     usage?: {
       input_tokens?: number;
@@ -59,6 +60,8 @@ export function parseJsonlFile(filePath: string): ParsedSession | null {
   let assistantMessageCount = 0;
   const toolCounts: Record<string, number> = {};
   const languageCounts: Record<string, number> = {};
+  // Track per-model token usage and message count per session
+  const modelCounts: Record<string, { inputTokens: number; outputTokens: number; messageCount: number }> = {};
   let usesTaskAgent = false;
   let usesMcp = false;
   let firstTimestampMs = 0;
@@ -73,6 +76,16 @@ export function parseJsonlFile(filePath: string): ParsedSession | null {
       if (type === "assistant") {
         assistantMessageCount++;
         const msg = entry.message;
+        // Capture model from the assistant message for model usage tracking
+        const model = msg?.model;
+        if (model) {
+          const existing = modelCounts[model] ?? { inputTokens: 0, outputTokens: 0, messageCount: 0 };
+          modelCounts[model] = {
+            inputTokens: existing.inputTokens + (msg.usage?.input_tokens ?? 0),
+            outputTokens: existing.outputTokens + (msg.usage?.output_tokens ?? 0),
+            messageCount: existing.messageCount + 1,
+          };
+        }
         // Accumulate token usage from each assistant turn
         if (msg?.usage) {
           inputTokens += msg.usage.input_tokens ?? 0;
@@ -138,6 +151,7 @@ export function parseJsonlFile(filePath: string): ParsedSession | null {
     filesModified: 0,
     usesTaskAgent,
     usesMcp,
+    modelCounts,
   };
 }
 
