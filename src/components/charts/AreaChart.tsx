@@ -28,51 +28,40 @@ export function AreaChart({
   data,
   xAxisKey,
   series,
-  height = 300,
+  height = 280,
   showGrid = true,
 }: AreaChartProps) {
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <RechartsAreaChart
-        data={data}
-        margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-      >
+      <RechartsAreaChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
         <defs>
           {series.map((s) => (
-            <linearGradient
-              key={s.key}
-              id={`gradient-${s.key}`}
-              x1="0"
-              y1="0"
-              x2="0"
-              y2="1"
-            >
-              <stop offset="5%" stopColor={s.color} stopOpacity={0.3} />
+            <linearGradient key={s.key} id={`gradient-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={s.color} stopOpacity={0.25} />
               <stop offset="95%" stopColor={s.color} stopOpacity={0} />
             </linearGradient>
           ))}
         </defs>
-        {showGrid && (
-          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-        )}
+        {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />}
         <XAxis
           dataKey={xAxisKey}
-          tick={{ fontSize: 12 }}
+          tick={{ fontSize: 12, fill: "#888888", fontFamily: "Inter, sans-serif" }}
           tickLine={false}
           axisLine={false}
-          className="text-muted-foreground"
         />
         <YAxis
-          tick={{ fontSize: 12 }}
+          tick={{ fontSize: 12, fill: "#888888", fontFamily: "Inter, sans-serif" }}
           tickLine={false}
           axisLine={false}
-          className="text-muted-foreground"
         />
         <Tooltip
           contentStyle={{
-            backgroundColor: "hsl(var(--card))",
-            border: "1px solid hsl(var(--border))",
-            borderRadius: "0.5rem",
+            backgroundColor: "#1a1a1a",
+            border: "1px solid #2a2a2a",
+            borderRadius: "8px",
+            fontFamily: "Inter, sans-serif",
+            fontSize: "13px",
+            color: "#ffffff",
           }}
         />
         {series.map((s) => (

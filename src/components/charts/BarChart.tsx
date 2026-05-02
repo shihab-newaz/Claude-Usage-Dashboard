@@ -21,33 +21,52 @@ interface BarChartProps {
   color?: string;
 }
 
-export function BarChart({ data, height = 300, color = "#6366f1" }: BarChartProps) {
+const COLORS = [
+  "#faff69",
+  "#22c55e",
+  "#3b82f6",
+  "#ef4444",
+  "#888888",
+  "#f59e0b",
+  "#ec4899",
+  "#06b6d4",
+];
+
+export function BarChart({ data, height = 280, color }: BarChartProps) {
   return (
     <ResponsiveContainer width="100%" height={height}>
       <RechartsBarChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" vertical={false} />
         <XAxis
           dataKey="name"
-          tick={{ fontSize: 12 }}
+          tick={{ fontSize: 11, fill: "#888888", fontFamily: "Inter, sans-serif" }}
           tickLine={false}
           axisLine={false}
-          className="text-muted-foreground"
         />
         <YAxis
-          tick={{ fontSize: 12 }}
+          tick={{ fontSize: 12, fill: "#888888", fontFamily: "Inter, sans-serif" }}
           tickLine={false}
           axisLine={false}
-          className="text-muted-foreground"
         />
         <Tooltip
           contentStyle={{
-            backgroundColor: "hsl(var(--card))",
-            border: "1px solid hsl(var(--border))",
-            borderRadius: "0.5rem",
+            backgroundColor: "#1a1a1a",
+            border: "1px solid #2a2a2a",
+            borderRadius: "8px",
+            fontFamily: "Inter, sans-serif",
+            fontSize: "13px",
+            color: "#ffffff",
           }}
           formatter={(value) => (typeof value === "number" ? value.toLocaleString() : value)}
         />
-        <Bar dataKey="value" fill={color} radius={[4, 4, 0, 0]} />
+        {data.map((_, index) => (
+          <Bar
+            key={index}
+            dataKey="value"
+            fill={color ?? COLORS[index % COLORS.length]}
+            radius={[4, 4, 0, 0]}
+          />
+        ))}
       </RechartsBarChart>
     </ResponsiveContainer>
   );

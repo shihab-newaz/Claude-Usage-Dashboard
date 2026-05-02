@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { readAllSessionMeta } from "@/lib/session-meta";
+import { getDb } from "@/lib/db";
+import { syncAllSessions } from "@/lib/db/sync";
 import { estimateCost } from "@/lib/cost";
 import type {
   UsageSummary,
@@ -10,105 +11,161 @@ import type {
   ClaudeUsageResponse,
 } from "@/lib/types";
 
+// Always render fresh — never cache session data
 export const dynamic = "force-dynamic";
+
+// Throttle sync to once per minute to avoid re-parsing JSONL on every request
+let _lastSync = 0;
+const SYNC_INTERVAL = 60_000;
+
+function ensureSynced() {
+  const now = Date.now();
+  if (now - _lastSync > SYNC_INTERVAL) {
+    syncAllSessions();
+    _lastSync = now;
+  }
+}
 
 export async function GET() {
   try {
-    const sessions = readAllSessionMeta();
+    ensureSynced();
+    const db = getDb();
 
-    // Summary aggregation
+    // Aggregate totals across all sessions — COALESCE prevents NULL on empty table
+    const summaryRow = db.prepare(`
+      SELECT
+        COUNT(*)                                    AS totalSessions,
+        COALESCE(SUM(input_tokens), 0)             AS totalInputTokens,
+        COALESCE(SUM(output_tokens), 0)            AS totalOutputTokens,
+        COALESCE(SUM(cache_read_input_tokens), 0)  AS totalCacheReadTokens,
+        COALESCE(SUM(cache_creation_input_tokens), 0) AS totalCacheCreationTokens,
+        COALESCE(SUM(user_message_count), 0)        AS totalUserMessages,
+        COALESCE(SUM(assistant_message_count), 0)  AS totalAssistantMessages,
+        COALESCE(SUM(duration_minutes), 0)         AS totalDurationMinutes,
+        MAX(uses_task_agent)                       AS usesTaskAgent,
+        MAX(uses_mcp)                              AS usesMcp
+      FROM sessions
+    `).get() as Record<string, unknown>;
+
+    // Cost formula: input ~$1.25/M tokens, output ~$5/M tokens (Anthropic Claude pricing)
+    const costRow = db.prepare(`
+      SELECT SUM(
+        (input_tokens / 1000.0 * 0.00125) + (output_tokens / 1000.0 * 0.005)
+      ) AS estimatedCostUSD FROM sessions
+    `).get() as { estimatedCostUSD: number } | undefined;
+
     const summary: UsageSummary = {
-      totalSessions: sessions.length,
-      totalInputTokens: sessions.reduce((s, x) => s + x.input_tokens, 0),
-      totalOutputTokens: sessions.reduce((s, x) => s + x.output_tokens, 0),
-      totalCacheReadTokens: sessions.reduce((s, x) => s + (x.cache_read_input_tokens ?? 0), 0),
-      totalCacheCreationTokens: sessions.reduce((s, x) => s + (x.cache_creation_input_tokens ?? 0), 0),
-      estimatedCostUSD: sessions.reduce(
-        (s, x) => s + estimateCost(x.input_tokens, x.output_tokens),
-        0
-      ),
-      totalLinesAdded: sessions.reduce((s, x) => s + x.lines_added, 0),
-      totalLinesRemoved: sessions.reduce((s, x) => s + x.lines_removed, 0),
-      totalFilesModified: sessions.reduce((s, x) => s + x.files_modified, 0),
-      totalDurationMinutes: sessions.reduce((s, x) => s + x.duration_minutes, 0),
-      totalUserMessages: sessions.reduce((s, x) => s + x.user_message_count, 0),
-      totalAssistantMessages: sessions.reduce((s, x) => s + x.assistant_message_count, 0),
-      usesTaskAgent: sessions.some((x) => x.uses_task_agent),
-      usesMcp: sessions.some((x) => x.uses_mcp),
+      totalSessions: summaryRow.totalSessions as number,
+      totalInputTokens: summaryRow.totalInputTokens as number,
+      totalOutputTokens: summaryRow.totalOutputTokens as number,
+      totalCacheReadTokens: summaryRow.totalCacheReadTokens as number,
+      totalCacheCreationTokens: summaryRow.totalCacheCreationTokens as number,
+      estimatedCostUSD: costRow?.estimatedCostUSD ?? 0,
+      totalLinesAdded: 0,
+      totalLinesRemoved: 0,
+      totalFilesModified: 0,
+      totalDurationMinutes: summaryRow.totalDurationMinutes as number,
+      totalUserMessages: summaryRow.totalUserMessages as number,
+      totalAssistantMessages: summaryRow.totalAssistantMessages as number,
+      usesTaskAgent: !!summaryRow.usesTaskAgent,
+      usesMcp: !!summaryRow.usesMcp,
     };
 
-    // Tool breakdown
-    const toolMap = new Map<string, number>();
-    for (const s of sessions) {
-      for (const [tool, count] of Object.entries(s.tool_counts)) {
-        toolMap.set(tool, (toolMap.get(tool) ?? 0) + count);
-      }
-    }
-    const toolBreakdown: ToolUsageEntry[] = Array.from(toolMap.entries())
-      .map(([tool, count]) => ({ tool, count }))
-      .sort((a, b) => b.count - a.count);
+    // Daily time series — buckets sessions by calendar date for trend charts
+    const timeSeriesRows = db.prepare(`
+      SELECT
+        DATE(start_time) AS date,
+        SUM(input_tokens)             AS inputTokens,
+        SUM(output_tokens)            AS outputTokens,
+        SUM(cache_read_input_tokens)  AS cacheReadTokens,
+        COUNT(*)                      AS sessions
+      FROM sessions
+      GROUP BY DATE(start_time)
+      ORDER BY date ASC
+    `).all() as Array<{
+      date: string;
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadTokens: number;
+      sessions: number;
+    }>;
+    const timeSeries: TimeSeriesPoint[] = timeSeriesRows.map((r) => ({
+      date: r.date,
+      inputTokens: r.inputTokens,
+      outputTokens: r.outputTokens,
+      cacheReadTokens: r.cacheReadTokens,
+      sessions: r.sessions,
+    }));
 
-    // Language breakdown
-    const langMap = new Map<string, number>();
-    for (const s of sessions) {
-      for (const [lang, count] of Object.entries(s.languages)) {
-        langMap.set(lang, (langMap.get(lang) ?? 0) + count);
-      }
-    }
-    const languageBreakdown: LanguageEntry[] = Array.from(langMap.entries())
-      .map(([lang, count]) => ({ language: lang, count }))
-      .sort((a, b) => b.count - a.count);
+    // Tool breakdown — sum call_count across all sessions per tool
+    const toolRows = db.prepare(`
+      SELECT tool_name AS tool, SUM(call_count) AS count
+      FROM session_tools
+      GROUP BY tool_name
+      ORDER BY count DESC
+    `).all() as Array<{ tool: string; count: number }>;
+    const toolBreakdown: ToolUsageEntry[] = toolRows.map((r) => ({
+      tool: r.tool,
+      count: r.count,
+    }));
 
-    // Time series (daily buckets)
-    const dailyMap = new Map<string, TimeSeriesPoint>();
-    for (const s of sessions) {
-      const date = s.start_time.split("T")[0];
-      const existing = dailyMap.get(date) ?? {
-        date,
-        inputTokens: 0,
-        outputTokens: 0,
-        cacheReadTokens: 0,
-        sessions: 0,
-      };
-      dailyMap.set(date, {
-        ...existing,
-        inputTokens: existing.inputTokens + s.input_tokens,
-        outputTokens: existing.outputTokens + s.output_tokens,
-        cacheReadTokens: existing.cacheReadTokens + (s.cache_read_input_tokens ?? 0),
-        sessions: existing.sessions + 1,
-      });
-    }
-    const timeSeries: TimeSeriesPoint[] = Array.from(dailyMap.values()).sort(
-      (a, b) => a.date.localeCompare(b.date)
-    );
+    // Language breakdown — from file extensions in Write/Edit tool calls
+    const langRows = db.prepare(`
+      SELECT language, SUM(file_count) AS count
+      FROM session_languages
+      GROUP BY language
+      ORDER BY count DESC
+    `).all() as Array<{ language: string; count: number }>;
+    const languageBreakdown: LanguageEntry[] = langRows.map((r) => ({
+      language: r.language,
+      count: r.count,
+    }));
 
-    // Recent sessions (last 10, enriched)
-    const sortedSessions = [...sessions].sort(
-      (a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime()
-    );
-    const recentSessions: SessionSummary[] = sortedSessions.slice(0, 10).map((s) => {
-      const topTools: ToolUsageEntry[] = Object.entries(s.tool_counts)
-        .map(([tool, count]) => ({ tool, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 5);
-      const topLanguages: LanguageEntry[] = Object.entries(s.languages)
-        .map(([lang, count]) => ({ language: lang, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 5);
+    // Recent sessions — last 10, with per-session top 5 tools/languages joined separately
+    const recentRows = db.prepare(`
+      SELECT id, project_path, start_time, duration_minutes,
+             input_tokens, output_tokens, user_message_count,
+             assistant_message_count, tool_count, uses_task_agent, uses_mcp
+      FROM sessions
+      ORDER BY start_time DESC
+      LIMIT 10
+    `).all() as Array<Record<string, unknown>>;
+
+    const recentSessions: SessionSummary[] = recentRows.map((row) => {
+      const sessionId = row.id as string;
+      const inputTokens = row.input_tokens as number;
+      const outputTokens = row.output_tokens as number;
+
+      const sessionTools = db.prepare(`
+        SELECT tool_name AS tool, call_count AS count
+        FROM session_tools
+        WHERE session_id = ?
+        ORDER BY count DESC
+        LIMIT 5
+      `).all(sessionId) as Array<{ tool: string; count: number }>;
+
+      const sessionLangs = db.prepare(`
+        SELECT language, file_count AS count
+        FROM session_languages
+        WHERE session_id = ?
+        ORDER BY count DESC
+        LIMIT 5
+      `).all(sessionId) as Array<{ language: string; count: number }>;
+
       return {
-        sessionId: s.session_id,
-        projectPath: s.project_path,
-        startTime: s.start_time,
-        durationMinutes: s.duration_minutes,
-        inputTokens: s.input_tokens,
-        outputTokens: s.output_tokens,
-        estimatedCostUSD: estimateCost(s.input_tokens, s.output_tokens),
-        linesAdded: s.lines_added,
-        linesRemoved: s.lines_removed,
-        filesModified: s.files_modified,
-        toolCount: Object.keys(s.tool_counts).length,
-        topTools,
-        topLanguages,
+        sessionId,
+        projectPath: row.project_path as string,
+        startTime: row.start_time as string,
+        durationMinutes: row.duration_minutes as number,
+        inputTokens,
+        outputTokens,
+        estimatedCostUSD: estimateCost(inputTokens, outputTokens),
+        linesAdded: 0,
+        linesRemoved: 0,
+        filesModified: 0,
+        toolCount: row.tool_count as number,
+        topTools: sessionTools.map((t) => ({ tool: t.tool, count: t.count })),
+        topLanguages: sessionLangs.map((l) => ({ language: l.language, count: l.count })),
       };
     });
 
@@ -123,10 +180,10 @@ export async function GET() {
 
     return NextResponse.json(response);
   } catch (err) {
-    console.error("[claude-usage] Failed to read transcript data:", err);
+    console.error("[claude-usage] DB query failed:", err);
     return NextResponse.json(
       { error: "Failed to read usage data", detail: String(err) },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

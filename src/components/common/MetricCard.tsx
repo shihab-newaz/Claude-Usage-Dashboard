@@ -1,58 +1,45 @@
 "use client";
 
-import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 interface MetricCardProps {
   label: string;
   value: string | number;
   icon?: LucideIcon;
-  trend?: "up" | "down" | "stable";
-  trendValue?: string;
   className?: string;
 }
 
-export function MetricCard({
-  label,
-  value,
-  icon: Icon,
-  trend,
-  trendValue,
-  className,
-}: MetricCardProps) {
-  const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
-  const trendColor =
-    trend === "up"
-      ? "text-green-500"
-      : trend === "down"
-        ? "text-red-500"
-        : "text-muted-foreground";
-
+export function MetricCard({ label, value, icon: Icon, className }: MetricCardProps) {
   return (
-    <Card className={cn("hover:shadow-md transition-shadow", className)}>
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <p className="text-sm font-medium text-muted-foreground">{label}</p>
-            <p className="mt-2 text-3xl font-bold tracking-tight">
-              {typeof value === "number" ? value.toLocaleString() : value}
-            </p>
-            {trend && trendValue && (
-              <div className={cn("mt-2 flex items-center gap-1 text-sm", trendColor)}>
-                <TrendIcon className="h-4 w-4" />
-                <span>{trendValue}</span>
-              </div>
-            )}
-          </div>
-          {Icon && (
-            <div className="rounded-full bg-primary/10 p-3">
-              <Icon className="h-5 w-5 text-primary" />
-            </div>
-          )}
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-xl bg-[#1a1a1a] border border-[#2a2a2a] p-6 transition-all duration-300 hover:border-[#faff69]/30",
+        className
+      )}
+    >
+      {/* Subtle accent line at top */}
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#faff69]/20 to-transparent" />
+
+      <div className="flex items-start justify-between gap-4">
+        {/* Label */}
+        <div className="flex-1 min-w-0">
+          <p className="text-[12px] font-semibold uppercase tracking-widest text-[#888888] mb-3">
+            {label}
+          </p>
+          {/* Stat value — yellow, large */}
+          <p className="font-stat-display text-[#faff69] truncate">
+            {typeof value === "number" ? value.toLocaleString() : value}
+          </p>
         </div>
-      </CardContent>
-    </Card>
+
+        {/* Icon */}
+        {Icon && (
+          <div className="flex-shrink-0 rounded-lg bg-[#242424] border border-[#2a2a2a] p-3">
+            <Icon className="h-5 w-5 text-[#faff69]" />
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
