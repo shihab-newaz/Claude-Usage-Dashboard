@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useClaudeUsage } from "@/hooks/useClaudeUsage";
 import { MetricCard } from "@/components/common/MetricCard";
 import { AreaChart } from "@/components/charts/AreaChart";
@@ -8,6 +9,7 @@ import { BarChart } from "@/components/charts/BarChart";
 import { SessionsTable } from "@/components/common/SessionsTable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { format } from "date-fns";
 import { MessageSquare, Zap, TrendingUp, Clock, DollarSign } from "lucide-react";
 
@@ -28,7 +30,8 @@ function LoadingSkeleton() {
 }
 
 export default function ClaudeUsagePage() {
-  const { data, isLoading, isError, error } = useClaudeUsage();
+  const [dateRange, setDateRange] = useState<{ from?: string; to?: string }>({});
+  const { data, isLoading, isError, error } = useClaudeUsage(dateRange.from, dateRange.to);
 
   if (isLoading) return <LoadingSkeleton />;
 
@@ -57,6 +60,11 @@ export default function ClaudeUsagePage() {
         <p className="text-[13px] text-[#888888] pl-7">
           Aggregated from {summary.totalSessions} sessions — {format(new Date(data.generatedAt), "yyyy-MM-dd HH:mm:ss")}
         </p>
+      </div>
+
+      {/* Date Range Filter */}
+      <div className="flex items-center gap-4">
+        <DateRangePicker value={dateRange} onChange={setDateRange} />
       </div>
 
       {/* Summary Cards */}

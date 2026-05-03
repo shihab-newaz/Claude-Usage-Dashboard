@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "react-date-range/dist/styles.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -245,4 +246,96 @@
   line-height: 1.0;
   letter-spacing: -1.5px;
   color: #faff69;
+}
+
+/* react-date-range dark theme overrides */
+.rdrCalendarWrapper {
+  background: #1a1a1a;
+  color: #ffffff;
+}
+.rdrDateRangePickerWrapper {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+}
+.rdrMonthAndYearWrapper {
+  background: #1a1a1a;
+  color: #ffffff;
+}
+.rdrNextPrevButton {
+  color: #888888;
+}
+.rdrNextPrevButton:hover {
+  background: #2a2a2a;
+}
+.rdrMonthPicker select,
+.rdrYearPicker select {
+  background: #1a1a1a;
+  color: #ffffff;
+  border: 1px solid #2a2a2a;
+}
+.rdrWeekDay {
+  color: #888888;
+}
+.rdrDay {
+  color: #ffffff;
+}
+.rdrDay:hover {
+  background: #2a2a2a;
+}
+.rdrDayNumber {
+  color: #ffffff;
+}
+.rdrDayDisabled {
+  color: #444444;
+}
+.rdrInRange {
+  background: #2a2a2a;
+  color: #ffffff;
+}
+.rdrStartEdge,
+.rdrEndEdge,
+.rdrSelected {
+  background: #faff69 !important;
+  color: #0a0a0a !important;
+}
+.rdrDayStartPreview,
+.rdrDayEndPreview,
+.rdrDayInPreview {
+  background: #2a2a2a;
+  border-color: #faff69;
+}
+.rdrDefinedRangesWrapper {
+  background: #121212;
+  border-right: 1px solid #2a2a2a;
+}
+.rdrStaticRange {
+  background: transparent;
+}
+.rdrStaticRange:hover {
+  background: #2a2a2a;
+}
+.rdrStaticRangeLabel {
+  color: #cccccc;
+}
+.rdrInputRanges {
+  background: transparent;
+}
+.rdrInputRange {
+  color: #888888;
+}
+.rdrInputRangeInput {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  color: #ffffff;
+}
+.rdrMonthName {
+  color: #ffffff;
+}
+.rdrDateDisplayItem input {
+  color: #ffffff;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+}
+.rdrDateDisplayItemActive input {
+  border-color: #faff69;
 }

@@ -1,9 +1,15 @@
 "use client"
 
 import * as React from "react"
+import {
+  DateRangePicker as RDRPicker,
+  defaultStaticRanges,
+  type Range,
+} from "react-date-range"
 import { format, startOfMonth, subDays, startOfDay } from "date-fns"
 
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 interface DateRangePickerProps {
@@ -12,78 +18,126 @@ interface DateRangePickerProps {
   className?: string
 }
 
-type Preset = { label: string; days?: number; thisMonth?: boolean; allTime?: boolean }
-
-const PRESETS: Preset[] = [
-  { label: "7D", days: 7 },
-  { label: "30D", days: 30 },
-  { label: "This Month", thisMonth: true },
-  { label: "All Time", allTime: true },
-]
-
 function toInputValue(d: Date): string {
   return format(d, "yyyy-MM-dd")
 }
 
-function getPresetRange(preset: Preset): { from?: string; to?: string } {
-  const today = startOfDay(new Date())
-  if (preset.allTime) return {}
-  if (preset.days) return { from: toInputValue(subDays(today, preset.days - 1)), to: toInputValue(today) }
-  if (preset.thisMonth) return { from: toInputValue(startOfMonth(today)), to: toInputValue(today) }
-  return {}
+function toDate(value?: string): Date | undefined {
+  return value ? new Date(value + "T00:00:00") : undefined
 }
 
+function toRange(value?: { from?: string; to?: string }): Range {
+  return {
+    startDate: toDate(value?.from),
+    endDate: toDate(value?.to),
+    key: "selection",
+  }
+}
+
+const PRESETS = [
+  {
+    label: "Last 7 Days",
+    range() {
+      const t = startOfDay(new Date())
+      return { startDate: subDays(t, 6), endDate: t }
+    },
+  },
+  {
+    label: "Last 30 Days",
+    range() {
+      const t = startOfDay(new Date())
+      return { startDate: subDays(t, 29), endDate: t }
+    },
+  },
+  {
+    label: "This Month",
+    range() {
+      const t = startOfDay(new Date())
+      return { startDate: startOfMonth(t), endDate: t }
+    },
+  },
+  {
+    label: "All Time",
+    range() {
+      return { startDate: undefined, endDate: undefined }
+    },
+  },
+]
+
 export function DateRangePicker({ value, onChange, className }: DateRangePickerProps) {
-  const range = value ?? {}
+  const [open, setOpen] = React.useState(false)
+  const [sel, setSel] = React.useState<Range>(toRange(value))
 
-  function handlePreset(preset: Preset) {
-    onChange?.(getPresetRange(preset))
+  // Keep internal state in sync when value prop changes externally
+  React.useEffect(() => {
+    setSel(toRange(value))
+  }, [value])
+
+  function handleChange(r: Range) {
+    setSel(r)
+    onChange?.({
+      from: r.startDate ? toInputValue(r.startDate) : undefined,
+      to: r.endDate ? toInputValue(r.endDate) : undefined,
+    })
   }
 
-  function handleFromChange(e: React.ChangeEvent<HTMLInputElement>) {
-    onChange?.({ from: e.target.value || undefined, to: range.to })
+  function handlePreset(fn: () => { startDate?: Date; endDate?: Date }) {
+    const r = fn()
+    const range: Range = { startDate: r.startDate, endDate: r.endDate, key: "selection" }
+    setSel(range)
+    onChange?.({
+      from: r.startDate ? toInputValue(r.startDate) : undefined,
+      to: r.endDate ? toInputValue(r.endDate) : undefined,
+    })
+    setOpen(false)
   }
 
-  function handleToChange(e: React.ChangeEvent<HTMLInputElement>) {
-    onChange?.({ from: range.from, to: e.target.value || undefined })
-  }
+  const displayValue = sel.startDate && sel.endDate
+    ? `${toInputValue(sel.startDate)} → ${toInputValue(sel.endDate)}`
+    : sel.startDate
+    ? `${toInputValue(sel.startDate)} → …`
+    : "All Time"
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      {/* Preset buttons */}
+      {/* Preset shortcuts */}
       <div className="flex gap-1.5 flex-wrap">
-        {PRESETS.map((preset) => (
+        {PRESETS.map((p) => (
           <Button
-            key={preset.label}
+            key={p.label}
             variant="outline"
             size="sm"
-            onClick={() => handlePreset(preset)}
-            className={cn(
-              "text-xs h-7 px-2",
-              preset.allTime && !range.from && !range.to && buttonVariants({ variant: "secondary" })
-            )}
+            onClick={() => handlePreset(p.range)}
+            className="text-xs h-7 px-2"
           >
-            {preset.label}
+            {p.label}
           </Button>
         ))}
       </div>
 
-      {/* Date inputs */}
-      <div className="flex gap-2 items-center">
-        <input
-          type="date"
-          value={range.from ?? ""}
-          onChange={handleFromChange}
-          className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
-        />
-        <span className="text-xs text-muted-foreground">to</span>
-        <input
-          type="date"
-          value={range.to ?? ""}
-          onChange={handleToChange}
-          className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
-        />
-      </div>
+      {/* Calendar trigger */}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger>
+          <Button
+            variant="outline"
+            className="h-8 px-2.5 text-xs justify-start font-normal"
+            onClick={() => setOpen((v) => !v)}
+          >
+            {displayValue}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <RDRPicker
+            date={sel.startDate ?? new Date()}
+            onChange={handleChange}
+            ranges={[sel]}
+            staticRanges={defaultStaticRanges}
+            inputRanges={[]}
+            showMonthAndYearPickers
+            direction="horizontal"
+          />
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }
