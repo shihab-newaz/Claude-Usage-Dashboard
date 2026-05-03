@@ -76,25 +76,25 @@ export default function ClaudeUsagePage() {
         <TabsList className="bg-[#121212] border border-[#2a2a2a] rounded-xl p-1 mb-4">
           <TabsTrigger
             value="tokens"
-            className="data-[active]:bg-[#faff69] data-[active]:text-[#0a0a0a] data-[active]:font-semibold rounded-lg px-4 py-2 text-sm text-[#888888] hover:text-[#ffffff] transition-all"
+            className="data-active:bg-[#faff69] data-active:text-[#0a0a0a] data-active:font-semibold rounded-lg px-4 py-2 text-sm text-[#888888] hover:text-[#ffffff] transition-all"
           >
             Token Usage
           </TabsTrigger>
           <TabsTrigger
             value="tools"
-            className="data-[active]:bg-[#faff69] data-[active]:text-[#0a0a0a] data-[active]:font-semibold rounded-lg px-4 py-2 text-sm text-[#888888] hover:text-[#ffffff] transition-all"
+            className="data-active:bg-[#faff69] data-active:text-[#0a0a0a] data-active:font-semibold rounded-lg px-4 py-2 text-sm text-[#888888] hover:text-[#ffffff] transition-all"
           >
             Tool Breakdown
           </TabsTrigger>
           <TabsTrigger
             value="languages"
-            className="data-[active]:bg-[#faff69] data-[active]:text-[#0a0a0a] data-[active]:font-semibold rounded-lg px-4 py-2 text-sm text-[#888888] hover:text-[#ffffff] transition-all"
+            className="data-active:bg-[#faff69] data-active:text-[#0a0a0a] data-active:font-semibold rounded-lg px-4 py-2 text-sm text-[#888888] hover:text-[#ffffff] transition-all"
           >
             Languages
           </TabsTrigger>
           <TabsTrigger
             value="models"
-            className="data-[active]:bg-[#faff69] data-[active]:text-[#0a0a0a] data-[active]:font-semibold rounded-lg px-4 py-2 text-sm text-[#888888] hover:text-[#ffffff] transition-all"
+            className="data-active:bg-[#faff69] data-active:text-[#0a0a0a] data-active:font-semibold rounded-lg px-4 py-2 text-sm text-[#888888] hover:text-[#ffffff] transition-all"
           >
             Models
           </TabsTrigger>

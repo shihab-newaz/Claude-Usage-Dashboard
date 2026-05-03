@@ -19,7 +19,7 @@ export function MetricCard({ label, value, icon: Icon, className }: MetricCardPr
       )}
     >
       {/* Subtle accent line at top */}
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#faff69]/20 to-transparent" />
+      <div className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-[#faff69]/20 to-transparent" />
 
       <div className="flex items-start justify-between gap-4">
         {/* Label */}
@@ -35,7 +35,7 @@ export function MetricCard({ label, value, icon: Icon, className }: MetricCardPr
 
         {/* Icon */}
         {Icon && (
-          <div className="flex-shrink-0 rounded-lg bg-[#242424] border border-[#2a2a2a] p-3">
+          <div className="shrink-0 rounded-lg bg-[#242424] border border-[#2a2a2a] p-3">
             <Icon className="h-5 w-5 text-[#faff69]" />
           </div>
         )}

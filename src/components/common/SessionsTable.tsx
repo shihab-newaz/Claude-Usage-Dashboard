@@ -60,7 +60,7 @@ export function SessionsTable({ sessions }: SessionsTableProps) {
               key={session.sessionId}
               className="border-[#2a2a2a] hover:bg-[#1a1a1a] cursor-pointer transition-colors"
             >
-              <TableCell className="max-w-[200px] truncate">
+              <TableCell className="max-w-50 truncate">
                 <Link
                   href={`/claude-usage/${session.sessionId}`}
                   className="text-[#ffffff] font-medium hover:text-[#faff69] transition-colors"

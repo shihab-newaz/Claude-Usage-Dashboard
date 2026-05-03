@@ -8,24 +8,30 @@ import {
   getToolBreakdown,
   getUsageSummary,
   getUsageTimeSeries,
+  type DateRangeFilter,
 } from "@/lib/db/queries/usage";
 import type { ClaudeUsageResponse } from "@/lib/types";
 
 // Always render fresh - never cache local session data.
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     ensureSynced();
     const db = getDb();
 
+    const { searchParams } = new URL(request.url);
+    const dateFrom = searchParams.get("dateFrom") ?? undefined;
+    const dateTo = searchParams.get("dateTo") ?? undefined;
+    const filter: DateRangeFilter = { dateFrom, dateTo };
+
     const response: ClaudeUsageResponse = {
-      summary: getUsageSummary(db),
-      timeSeries: getUsageTimeSeries(db),
-      toolBreakdown: getToolBreakdown(db),
-      languageBreakdown: getLanguageBreakdown(db),
-      modelBreakdown: getModelBreakdown(db),
-      recentSessions: getRecentSessions(db),
+      summary: getUsageSummary(db, filter),
+      timeSeries: getUsageTimeSeries(db, filter),
+      toolBreakdown: getToolBreakdown(db, filter),
+      languageBreakdown: getLanguageBreakdown(db, filter),
+      modelBreakdown: getModelBreakdown(db, filter),
+      recentSessions: getRecentSessions(db, 10, filter),
       generatedAt: new Date().toISOString(),
     };
 
